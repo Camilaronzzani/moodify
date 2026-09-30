@@ -9,8 +9,10 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { AnaliseAtualProvider } from '@/contexts/analise-atual';
+import { ConsentimentoProvider } from '@/contexts/consentimento';
 import { FavoritosProvider } from '@/contexts/favoritos';
 import { HistoricoProvider } from '@/contexts/historico';
+import { PlayerProvider } from '@/contexts/player';
 import { SessaoProvider } from '@/contexts/sessao';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -42,9 +44,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <SessaoProvider>
+        <ConsentimentoProvider>
         <FavoritosProvider>
           <HistoricoProvider>
             <AnaliseAtualProvider>
+              <PlayerProvider>
               <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="carregando" options={{ headerShown: false }} />
@@ -52,9 +56,11 @@ export default function RootLayout() {
                 <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                 <Stack.Screen name="not-found" options={{ title: 'Página não encontrada' }} />
               </Stack>
+              </PlayerProvider>
             </AnaliseAtualProvider>
           </HistoricoProvider>
         </FavoritosProvider>
+        </ConsentimentoProvider>
       </SessaoProvider>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -38,6 +38,47 @@ export const ENERGIAS = ["low", "medium", "high"] as const;
 export type Energia = (typeof ENERGIAS)[number];
 
 /**
+ * Temas de vida — o ASSUNTO do que a pessoa contou, não o sentimento.
+ *
+ * Existe porque emoção sozinha perde informação. "Acabei de terminar" e
+ * "estou cansado do trabalho" podem gerar a mesma tristeza, mas pedem
+ * músicas completamente diferentes. O tema é o que dá especificidade.
+ */
+export const TEMAS = [
+  "nenhum",
+  "termino",
+  "luto",
+  "solidao",
+  "saudade",
+  "conquista",
+  "mudanca",
+  "sobrecarga",
+] as const;
+
+export type Tema = (typeof TEMAS)[number];
+
+export const NOMES_TEMA: Record<Tema, string> = {
+  nenhum: "Seu momento",
+  termino: "Fim de relacionamento",
+  luto: "Perda",
+  solidao: "Solidão",
+  saudade: "Saudade",
+  conquista: "Conquista",
+  mudanca: "Mudança",
+  sobrecarga: "Sobrecarga",
+};
+
+/**
+ * Intenção: o que a pessoa quer que a música FAÇA com o sentimento.
+ *
+ * Quem escolhe é ela, não o algoritmo — é a diferença entre um app que acha
+ * que sabe o que você precisa e um que pergunta. Mergulhar no sentimento
+ * (catarse) e sair dele são ambos válidos, e só a pessoa sabe qual quer.
+ */
+export const INTENCOES = ["acolher", "levantar"] as const;
+export type Intencao = (typeof INTENCOES)[number];
+
+/**
  * Tags de descoberta. São propositalmente as tags sociais da Last.fm, e não
  * gêneros — `melancholic` e `late night` descrevem um momento muito melhor
  * que `Alternative Rock`.
@@ -51,6 +92,11 @@ export const TAGS = [
   "angry",
   "romantic",
   "dreamy",
+  // Temas de vida
+  "heartbreak",
+  "empowering",
+  "healing",
+  "letting go",
   // Momento
   "late night",
   "rainy day",

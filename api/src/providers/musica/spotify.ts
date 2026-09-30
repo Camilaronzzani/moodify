@@ -209,23 +209,103 @@ export class SpotifyProvider implements MusicProvider {
     }
   }
 
+  /**
+   * ATENÇÃO — mudança de fevereiro de 2026.
+   *
+   * `GET /artists/{id}/top-tracks` foi REMOVIDO, junto com `GET /artists`,
+   * `GET /albums` e `GET /browse/new-releases`. As remoções valem para todos
+   * os client IDs desde 9 de março de 2026.
+   *
+   * Sem endpoint de top faixas, a única saída é a busca: pedimos faixas do
+   * artista e ordenamos pelo que o Spotify devolver. É menos preciso que
+   * "top tracks" — o resultado é relevância textual, não popularidade real.
+   *
+   * A Deezer ainda tem `/artist/{id}/top`, e por isso segue como provider
+   * padrão do motor.
+   */
   async topFaixasDoArtista(nome: string, limite = 5, market = "BR"): Promise<Faixa[]> {
-    // `/artists/{id}/top-tracks` NÃO foi removido em 2024 — segue disponível.
-    const busca = await this.pedir<{ artists?: { items: SpotifyArtista[] } }>(
-      `/search?q=${encodeURIComponent(nome)}&type=artist&limit=1&market=${market}`,
+    const corpo = await this.pedir<{ tracks?: { items: SpotifyFaixa[] } }>(
+      `/search?q=${encodeURIComponent(`artist:${nome}`)}&type=track&limit=${limite}&market=${market}`,
     );
 
-    const artista = busca.artists?.items[0];
+    return (corpo.tracks?.items ?? [])
+      // A busca por `artist:` é aproximada e traz colaborações e covers;
+      // filtramos para o artista pedido não virar outro.
+      .filter((bruta) =>
+        bruta.artists.some((a) => a.name.toLowerCase() === nome.toLowerCase()),
+      )
+      .slice(0, limite)
+      .map((bruta) => this.converterFaixa(bruta));
+  }
 
-    if (!artista) {
-      return [];
+  /**
+   * Cria uma playlist na conta do usuário e adiciona as faixas.
+   *
+   * Exige token de USUÁRIO (Authorization Code + PKCE) com os escopos
+   * `playlist-modify-private` / `playlist-modify-public` — Client Credentials
+   * não serve aqui, porque não há usuário associado.
+   *
+   * Endpoints atualizados em fevereiro de 2026:
+   * - criar: `POST /me/playlists` (antes era `/users/{user_id}/playlists`)
+   * - adicionar: `POST /playlists/{id}/items` (antes era `/tracks`)
+   *
+   * NÃO TESTADO: sem credenciais, este caminho nunca foi executado.
+   */
+  async criarPlaylist(
+    nome: string,
+    providerIds: string[],
+    tokenUsuario: string,
+    descricao = "Criada pelo Moodify",
+  ): Promise<string> {
+    const criada = await this.pedirComoUsuario<{ id: string; external_urls: { spotify: string } }>(
+      "/me/playlists",
+      tokenUsuario,
+      { method: "POST", body: { name: nome, description: descricao, public: false } },
+    );
+
+    if (providerIds.length > 0) {
+      // O limite é 100 itens por requisição.
+      const uris = providerIds.slice(0, 100).map((id) => `spotify:track:${id}`);
+
+      await this.pedirComoUsuario(`/playlists/${criada.id}/items`, tokenUsuario, {
+        method: "POST",
+        body: { uris },
+      });
     }
 
-    const top = await this.pedir<{ tracks?: SpotifyFaixa[] }>(
-      `/artists/${artista.id}/top-tracks?market=${market}`,
-    );
+    return criada.external_urls.spotify;
+  }
 
-    return (top.tracks ?? []).slice(0, limite).map((bruta) => this.converterFaixa(bruta));
+  /** Chamada em nome do usuário, com o token dele em vez do do app. */
+  private async pedirComoUsuario<T>(
+    caminho: string,
+    tokenUsuario: string,
+    opcoes: { method: "GET" | "POST"; body?: unknown },
+  ): Promise<T> {
+    const resposta = await fetch(`${BASE}${caminho}`, {
+      method: opcoes.method,
+      headers: {
+        Authorization: `Bearer ${tokenUsuario}`,
+        "Content-Type": "application/json",
+      },
+      body: opcoes.body ? JSON.stringify(opcoes.body) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (resposta.status === 401 || resposta.status === 403) {
+      throw new Error(
+        "O Spotify recusou o token do usuário. Ele pode ter expirado, ou a conta " +
+          "não está na lista de usuários do app (limite do modo de desenvolvimento).",
+      );
+    }
+
+    if (!resposta.ok) {
+      const detalhe = await resposta.text();
+      throw new Error(`Spotify respondeu ${resposta.status} em ${caminho}: ${detalhe}`);
+    }
+
+    const texto = await resposta.text();
+    return (texto.length > 0 ? JSON.parse(texto) : null) as T;
   }
 
   private converterFaixa(bruta: SpotifyFaixa): Faixa {

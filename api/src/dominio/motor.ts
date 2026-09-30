@@ -2,7 +2,7 @@ import type { PerfilEmocional } from "../providers/ia/contrato.ts";
 import type { Faixa, MusicProvider } from "../providers/musica/contrato.ts";
 import { sortearArtistas } from "./artistas-semente.ts";
 import { resolverRegra } from "./mapa-emocional.ts";
-import { NOMES_ENERGIA, type Tag } from "./taxonomia.ts";
+import { NOMES_ENERGIA, type Intencao, type Tag, type Tema } from "./taxonomia.ts";
 
 /**
  * O motor de recomendação do Moodify.
@@ -47,6 +47,8 @@ type Opcoes = {
   jaVistas?: Set<string>;
   /** Rotaciona quais artistas curados entram — evita repetir sempre os mesmos. */
   semente?: number;
+  tema?: Tema;
+  intencao?: Intencao;
 };
 
 export class MotorRecomendacao {
@@ -55,7 +57,12 @@ export class MotorRecomendacao {
   async recomendar(perfil: PerfilEmocional, opcoes: Opcoes = {}): Promise<Recomendacao> {
     const { limite = 15, market = "BR", jaVistas = new Set<string>() } = opcoes;
 
-    const regra = resolverRegra(perfil.emotion, perfil.context);
+    const regra = resolverRegra(
+      perfil.emotion,
+      perfil.context,
+      opcoes.tema ?? perfil.theme,
+      opcoes.intencao ?? "acolher",
+    );
 
     // Prioriza as tags que o perfil trouxe, mas garante que sejam tags do
     // mapa curado — é o mapa que sabe o peso de cada uma.

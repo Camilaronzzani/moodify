@@ -27,6 +27,12 @@ export const ARTISTAS_POR_TAG: Record<Tag, string[]> = {
   romantic: ["Marvin Gaye", "Al Green", "Sade", "D'Angelo", "Djavan", "Tim Maia"],
   dreamy: ["Beach House", "Cocteau Twins", "Slowdive", "Mazzy Star", "Cigarettes After Sex", "Men I Trust"],
 
+  // Temas de vida
+  heartbreak: ["Adele", "Amy Winehouse", "Lord Huron", "Bon Iver", "Marisa Monte", "Cazuza", "SZA"],
+  empowering: ["Beyoncé", "Aretha Franklin", "Dua Lipa", "Elza Soares", "Rita Lee", "Gloria Gaynor"],
+  healing: ["Max Richter", "Ólafur Arnalds", "Ludovico Einaudi", "Milton Nascimento", "Agnes Obel"],
+  "letting go": ["Coldplay", "Florence + The Machine", "Adele", "Los Hermanos", "Fleetwood Mac"],
+
   // Momento
   "late night": ["Nujabes", "FKJ", "Tom Misch", "Sade", "Portishead", "Massive Attack"],
   "rainy day": ["Nick Drake", "Sufjan Stevens", "Bon Iver", "Agnes Obel", "Novos Baianos"],
@@ -59,11 +65,42 @@ export const ARTISTAS_POR_TAG: Record<Tag, string[]> = {
 };
 
 /**
- * Sorteia artistas de uma tag de forma estável para a mesma semente.
+ * Embaralhamento determinístico: mesma semente devolve sempre a mesma ordem,
+ * sementes diferentes devolvem ordens bem diferentes.
  *
- * Rotação em vez de aleatório puro: o mesmo usuário no mesmo dia recebe o
- * mesmo resultado (previsível, testável, cacheável), mas análises diferentes
- * pegam artistas diferentes — o que evita devolver sempre os mesmos nomes.
+ * Não usa `Math.random` de propósito — assim o resultado é reproduzível em
+ * teste e cacheável, mas ainda varia entre análises.
+ */
+function embaralhar<T>(itens: T[], semente: number): T[] {
+  const copia = [...itens];
+
+  // Gerador linear congruente simples: barato e suficiente para variar
+  // a ordem de uma lista de poucos elementos.
+  let estado = (semente * 9301 + 49297) % 233280;
+  const proximo = () => {
+    estado = (estado * 9301 + 49297) % 233280;
+    return estado / 233280;
+  };
+
+  // Fisher-Yates de trás para frente.
+  for (let i = copia.length - 1; i > 0; i--) {
+    const j = Math.floor(proximo() * (i + 1));
+    [copia[i], copia[j]] = [copia[j]!, copia[i]!];
+  }
+
+  return copia;
+}
+
+/**
+ * Escolhe artistas de uma tag, variando conforme a semente.
+ *
+ * A versão anterior pegava N artistas em sequência a partir de
+ * `semente % tamanho`. Como a semente vinha do número de faixas já vistas —
+ * quase sempre 0 nas primeiras análises —, o app devolvia sempre os mesmos
+ * quatro artistas de cada tag. Era a causa de "só vêm as mesmas músicas".
+ *
+ * Embaralhar a lista inteira antes de cortar dá variedade real: com 7
+ * artistas e 4 escolhidos, há 35 combinações possíveis por tag.
  */
 export function sortearArtistas(tag: Tag, quantidade: number, semente: number): string[] {
   const todos = ARTISTAS_POR_TAG[tag] ?? [];
@@ -72,9 +109,5 @@ export function sortearArtistas(tag: Tag, quantidade: number, semente: number): 
     return [];
   }
 
-  const inicio = semente % todos.length;
-
-  return Array.from({ length: Math.min(quantidade, todos.length) }, (_, i) => {
-    return todos[(inicio + i) % todos.length]!;
-  });
+  return embaralhar(todos, semente).slice(0, Math.min(quantidade, todos.length));
 }

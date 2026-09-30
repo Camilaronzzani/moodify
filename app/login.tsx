@@ -99,6 +99,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   conteudo: {
+    maxWidth: 620,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 28,
     paddingBottom: 40,
     gap: 20,

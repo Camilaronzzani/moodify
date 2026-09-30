@@ -3,11 +3,14 @@ import {
   CONTEXTOS,
   EMOCOES,
   ENERGIAS,
+  TEMAS,
   filtrarTagsValidas,
   type Contexto,
   type Emocao,
   type Energia,
+  type Intencao,
   type Tag,
+  type Tema,
 } from "../../dominio/taxonomia.ts";
 
 /**
@@ -17,6 +20,8 @@ import {
 
 export type PerfilEmocional = {
   emotion: Emocao;
+  /** O assunto do que foi contado — dá especificidade à recomendação. */
+  theme: Tema;
   context: Contexto;
   energy: Energia;
   tags: Tag[];
@@ -28,7 +33,24 @@ export type PerfilEmocional = {
 
 export interface AIProvider {
   readonly nome: string;
-  analisarHumor(texto: string): Promise<PerfilEmocional>;
+  /**
+   * A intenção não muda a leitura do sentimento — ela muda quais tags
+   * musicais o perfil carrega. Interpretar e recomendar são coisas
+   * diferentes, e só a segunda depende do que a pessoa quer.
+   */
+  analisarHumor(texto: string, intencao?: Intencao): Promise<PerfilEmocional>;
+
+  /**
+   * Escreve a frase que reconhece o que a pessoa contou.
+   *
+   * AQUI é onde um modelo de linguagem é insubstituível. Classificar emoção
+   * um dicionário faz quase igual; responder "sinto muito, seis anos é muito
+   * tempo" a quem escreveu sobre um namoro de seis anos, não.
+   *
+   * Opcional de propósito: quem não implementa cai nos textos curados de
+   * `dominio/acolhimento.ts`, que nunca falham e nunca dizem algo estranho.
+   */
+  gerarAcolhimento?(texto: string, perfil: PerfilEmocional): Promise<string>;
 }
 
 /**
@@ -38,6 +60,7 @@ export interface AIProvider {
  */
 export const RespostaModeloSchema = z.object({
   emotion: z.enum(EMOCOES),
+  theme: z.enum(TEMAS).default("nenhum"),
   context: z.enum(CONTEXTOS).default("qualquer"),
   energy: z.enum(ENERGIAS),
   tags: z.array(z.string()).default([]),

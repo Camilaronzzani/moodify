@@ -1,3 +1,4 @@
+import { PedidoConsentimento } from "@/components/pedido-consentimento";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EsqueletoListaMusicas } from "@/components/ui/esqueleto";
@@ -5,6 +6,7 @@ import { Secao } from "@/components/ui/secao";
 import { Tag } from "@/components/ui/tag";
 import { Tela } from "@/components/ui/tela";
 import { Brand, BrandFonts } from "@/constants/theme";
+import { useConsentimento } from "@/contexts/consentimento";
 import { useSessao } from "@/contexts/sessao";
 import { useAnalise } from "@/hooks/use-analise";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
@@ -31,6 +33,7 @@ const SUGESTOES = [
 
 export default function Home() {
   const { usuario } = useSessao();
+  const { aceito: consentiu, carregando: verificandoConsentimento } = useConsentimento();
   const { analisar, tentarDeNovo, analisando, erro, pronto } = useAnalise();
   const [texto, setTexto] = useState("");
 
@@ -53,6 +56,9 @@ export default function Home() {
         </View>
       </Secao>
 
+      {!verificandoConsentimento && !consentiu && <PedidoConsentimento />}
+
+      {consentiu && (
       <Card destacado>
         <Text style={styles.tituloCard}>Prefere escrever?</Text>
         <Text style={styles.descricaoCard}>
@@ -81,6 +87,7 @@ export default function Home() {
           onPress={() => analisar(texto)}
         />
       </Card>
+      )}
 
       {analisando && (
         <Card>

@@ -95,6 +95,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   conteudo: {
+    // Limite para a web: sem ele o conteúdo estica a largura do monitor.
+    maxWidth: 620,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 28,
     paddingBottom: 40,
     gap: 22,
