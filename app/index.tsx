@@ -90,6 +90,10 @@ const styles = StyleSheet.create({
   },
   conteudo: {
     alignItems: "center",
+    // Limite para a web: sem ele o conteúdo estica a largura do monitor.
+    maxWidth: 620,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 28,
     paddingTop: 20,
     paddingBottom: 40,

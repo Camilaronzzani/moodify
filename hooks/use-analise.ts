@@ -1,33 +1,36 @@
 import { useAnaliseAtual } from "@/contexts/analise-atual";
 import { ErroApi } from "@/services/api/cliente";
-import { analisarHumor, registrarEvento } from "@/services/api/moodify";
-import { ehApoio } from "@/services/api/tipos";
+import { analisarHumor, buscarRecomendacoes, registrarEvento } from "@/services/api/moodify";
+import { ehApoio, type Intencao, type PerfilEmocional } from "@/services/api/tipos";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispositivo } from "./use-dispositivo";
 
 /**
- * Executa a análise no backend e conduz a navegação.
+ * Conduz o fluxo em duas etapas.
  *
- * Também mede o que precisamos saber sobre o fluxo: latência real vista pelo
- * usuário, taxa de sucesso e abandono. O abandono é o mais difícil de capturar
- * e o mais revelador — é a pessoa desistindo enquanto espera.
+ * 1. `analisar(texto)` — lê o momento e leva à tela de acolhimento (rápido)
+ * 2. `escolher(intencao)` — busca as faixas e leva às recomendações
+ *
+ * A separação existe por dois motivos. O primeiro é de produto: quem acabou
+ * de contar algo difícil merece ser reconhecido antes de receber uma lista.
+ * O segundo é de percepção: a etapa 1 responde em milissegundos, então a
+ * espera pela busca acontece depois de a pessoa já ter sido acolhida.
  */
 export function useAnalise() {
   const router = useRouter();
   const dispositivoId = useDispositivo();
-  const { definirRecomendacao, definirApoio } = useAnaliseAtual();
+  const { definirAcolhimento, definirRecomendacao, definirApoio } = useAnaliseAtual();
 
   const [analisando, setAnalisando] = useState(false);
+  const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState<ErroApi | null>(null);
 
-  // Refs porque o cleanup do efeito precisa ler o valor mais recente sem
-  // recriar o efeito a cada render.
   const emAndamento = useRef(false);
   const inicioRef = useRef(0);
   const ultimoTexto = useRef("");
 
-  // Se o componente sai de tela com análise em andamento, registra abandono.
+  // Se a tela sai com análise em andamento, registra abandono.
   useEffect(() => {
     return () => {
       if (emAndamento.current && dispositivoId) {
@@ -43,6 +46,7 @@ export function useAnalise() {
     };
   }, [dispositivoId]);
 
+  /** Etapa 1: interpreta o texto e abre o acolhimento. */
   const analisar = useCallback(
     async (texto: string) => {
       if (!dispositivoId || emAndamento.current) {
@@ -75,25 +79,11 @@ export function useAnalise() {
           return;
         }
 
-        definirRecomendacao(resposta);
-
+        definirAcolhimento(resposta);
         void registrarEvento(
-          { analiseId: resposta.id, tipo: "analise_concluida", latenciaMs },
+          { analiseId: "acolhimento", tipo: "analise_concluida", latenciaMs },
           dispositivoId,
         );
-
-        // Marca como exibidas para a anti-repetição do servidor funcionar.
-        resposta.faixas.forEach((faixa) => {
-          void registrarEvento(
-            {
-              analiseId: resposta.id,
-              faixaChave: `${faixa.artista}::${faixa.titulo}`,
-              isrc: faixa.isrc,
-              tipo: "exibida",
-            },
-            dispositivoId,
-          );
-        });
 
         router.push("/analise");
       } catch (causa) {
@@ -101,7 +91,6 @@ export function useAnalise() {
           causa instanceof ErroApi ? causa : new ErroApi(String(causa), "servidor");
 
         setErro(falha);
-
         void registrarEvento(
           {
             analiseId: "falhou",
@@ -116,10 +105,59 @@ export function useAnalise() {
         setAnalisando(false);
       }
     },
-    [dispositivoId, definirRecomendacao, definirApoio, router],
+    [dispositivoId, definirAcolhimento, definirApoio, router],
   );
 
-  /** Repete a última análise — usado pelo botão de "Tentar de novo". */
+  /** Etapa 2: a pessoa escolheu; busca as faixas e vai para a lista. */
+  const escolher = useCallback(
+    async (perfil: PerfilEmocional, intencao: Intencao) => {
+      if (!dispositivoId) {
+        return;
+      }
+
+      setBuscando(true);
+      setErro(null);
+      const inicio = Date.now();
+
+      try {
+        const resposta = await buscarRecomendacoes(perfil, intencao, dispositivoId);
+        definirRecomendacao(resposta);
+
+        // Marca como exibidas para a anti-repetição do servidor funcionar.
+        resposta.faixas.forEach((faixa) => {
+          void registrarEvento(
+            {
+              analiseId: resposta.id,
+              faixaChave: `${faixa.artista}::${faixa.titulo}`,
+              isrc: faixa.isrc,
+              tipo: "exibida",
+            },
+            dispositivoId,
+          );
+        });
+
+        void registrarEvento(
+          {
+            analiseId: resposta.id,
+            tipo: "analise_concluida",
+            latenciaMs: Date.now() - inicio,
+          },
+          dispositivoId,
+        );
+
+        // `replace`, não `push`: a pergunta já foi respondida, e voltar para
+        // ela seria pedir a mesma escolha duas vezes. Trocar de intenção se
+        // faz na própria tela de recomendações.
+        router.replace("/recomendacao");
+      } catch (causa) {
+        setErro(causa instanceof ErroApi ? causa : new ErroApi(String(causa), "servidor"));
+      } finally {
+        setBuscando(false);
+      }
+    },
+    [dispositivoId, definirRecomendacao, router],
+  );
+
   const tentarDeNovo = useCallback(() => {
     if (ultimoTexto.current.length > 0) {
       void analisar(ultimoTexto.current);
@@ -128,8 +166,10 @@ export function useAnalise() {
 
   return {
     analisar,
+    escolher,
     tentarDeNovo,
     analisando,
+    buscando,
     erro,
     /** `false` enquanto o id do dispositivo ainda está sendo lido do disco. */
     pronto: dispositivoId !== null,

@@ -3,7 +3,7 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Tela } from "@/components/ui/tela";
 import { Brand, BrandFonts } from "@/constants/theme";
 import { useFavoritos, type FaixaFavorita } from "@/contexts/favoritos";
-import { usePreview } from "@/hooks/use-preview";
+import { usePlayer } from "@/contexts/player";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -12,7 +12,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 export default function Favorito() {
   const router = useRouter();
   const { faixas, carregando, remover } = useFavoritos();
-  const preview = usePreview();
+  const player = usePlayer();
 
   if (carregando) {
     return (
@@ -75,13 +75,25 @@ export default function Favorito() {
 
             {!!faixa.previewUrl && (
               <Pressable
-                onPress={() => preview.alternar(faixa.previewUrl!)}
+                onPress={() =>
+                  player.alternar({
+                    providerId: faixa.chave,
+                    provider: faixa.provider,
+                    titulo: faixa.titulo,
+                    artista: faixa.artista,
+                    capaUrl: faixa.capaUrl,
+                    previewUrl: faixa.previewUrl,
+                    urls: { web: faixa.urlWeb, app: faixa.urlApp },
+                    motivos: [],
+                    score: 0,
+                  })
+                }
                 hitSlop={8}
                 accessibilityLabel={`Ouvir 30 segundos de ${faixa.titulo}`}
               >
                 <Ionicons
                   name={
-                    preview.urlTocando === faixa.previewUrl
+                    player.tocando && player.faixa?.previewUrl === faixa.previewUrl
                       ? "pause-circle-outline"
                       : "play-circle-outline"
                   }

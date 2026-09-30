@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Tela } from "@/components/ui/tela";
 import { Brand, BrandFonts } from "@/constants/theme";
+import { useConsentimento } from "@/contexts/consentimento";
 import { useFavoritos } from "@/contexts/favoritos";
 import { useHistorico } from "@/contexts/historico";
 import { useSessao } from "@/contexts/sessao";
@@ -13,6 +14,7 @@ export default function Configuracoes() {
   const { limpar: limparFavoritos } = useFavoritos();
   const { limpar: limparHistorico, analises } = useHistorico();
   const { sair } = useSessao();
+  const { aceito: consentiu, aceitoEm, revogar } = useConsentimento();
 
   /** Toda ação destrutiva passa por confirmação antes de apagar. */
   function confirmar(titulo: string, mensagem: string, acao: () => Promise<void>) {
@@ -80,6 +82,40 @@ export default function Configuracoes() {
             rotulo="Sobre o aplicativo"
             detalhe="O que é o Moodify"
             onPress={() => router.push("/sobre")}
+          />
+        </Card>
+
+        <Card>
+          <Item
+            icone="shield-checkmark-outline"
+            rotulo="Privacidade"
+            detalhe="O que fazemos com seus dados"
+            onPress={() => router.push("/privacidade")}
+          />
+          <View style={styles.divisor} />
+          <Item
+            icone={consentiu ? "checkmark-circle-outline" : "close-circle-outline"}
+            rotulo="Análise de texto"
+            detalhe={
+              consentiu
+                ? `Autorizada${aceitoEm ? ` em ${new Date(aceitoEm).toLocaleDateString("pt-BR")}` : ""} — toque para retirar`
+                : "Não autorizada — só as sugestões rápidas funcionam"
+            }
+            onPress={() => {
+              if (!consentiu) {
+                return;
+              }
+              // Retirar consentimento é um direito do titular: confirma, mas
+              // não dificulta.
+              Alert.alert(
+                "Retirar autorização",
+                "A análise de texto livre será desativada. As sugestões rápidas de emoção continuam funcionando.",
+                [
+                  { text: "Cancelar", style: "cancel" },
+                  { text: "Retirar", style: "destructive", onPress: () => void revogar() },
+                ],
+              );
+            }}
           />
         </Card>
 

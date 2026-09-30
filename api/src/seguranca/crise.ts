@@ -68,11 +68,18 @@ export type ResultadoTriagem = {
 };
 
 export function triarRisco(texto: string): ResultadoTriagem {
-  const limpo = normalizar(texto);
+  // Remove os trechos inofensivos ANTES de procurar sinais de risco.
+  //
+  // A versão anterior tratava falso positivo como veto global: qualquer
+  // "morri de rir" no texto fazia a função retornar sem risco. Isso engolia
+  // o sinal em frases como "morri de rir mais cedo, mas agora quero morrer"
+  // — um falso negativo grave, encontrado pelos testes.
+  //
+  // Recortando só os trechos coloquiais, o que sobra ainda é analisado.
+  let limpo = normalizar(texto);
 
-  // Falsos positivos têm prioridade: "morri de rir" nunca deve disparar.
-  if (FALSOS_POSITIVOS.some((frase) => limpo.includes(normalizar(frase)))) {
-    return { risco: false };
+  for (const frase of FALSOS_POSITIVOS) {
+    limpo = limpo.split(normalizar(frase)).join(" ");
   }
 
   const sinal = SINAIS_RISCO.find((frase) => limpo.includes(normalizar(frase)));

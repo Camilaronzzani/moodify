@@ -9,6 +9,8 @@ export type Energia = "low" | "medium" | "high";
 
 export type PerfilEmocional = {
   emotion: string;
+  /** O assunto do que a pessoa contou — término, luto, conquista... */
+  theme: string;
   context: string;
   energy: Energia;
   tags: string[];
@@ -17,8 +19,32 @@ export type PerfilEmocional = {
   /** Já traduzidos pelo backend, prontos para exibir. */
   emocaoNome: string;
   emocaoEmoji: string;
+  temaNome: string;
   contextoNome: string;
   energiaNome: string;
+};
+
+export type Intencao = "acolher" | "levantar";
+
+export type Escolha = {
+  intencao: Intencao;
+  rotulo: string;
+  descricao: string;
+};
+
+/**
+ * Etapa 1: a leitura do momento e a pergunta.
+ *
+ * Chega em milissegundos porque nenhuma busca de catálogo acontece ainda —
+ * a pessoa lê o acolhimento e escolhe sem esperar.
+ */
+export type RespostaAcolhimento = {
+  tipo: "acolhimento";
+  perfil: PerfilEmocional;
+  mensagem: string;
+  pergunta: string;
+  escolhas: [Escolha, Escolha];
+  diagnostico: { providerIa: string; latenciaMs: number };
 };
 
 export type Faixa = {
@@ -46,10 +72,11 @@ export type Diagnostico = {
   latenciaMs: number;
 };
 
-/** Resposta normal: emoção interpretada + faixas reais. */
+/** Etapa 2: as faixas, já com a intenção que a pessoa escolheu. */
 export type RespostaRecomendacao = {
   tipo: "recomendacao";
   id: string;
+  intencao: Intencao;
   perfil: PerfilEmocional;
   mensagem: string;
   faixas: Faixa[];
@@ -73,7 +100,7 @@ export type RespostaApoio = {
   recursos: RecursoDeApoio[];
 };
 
-export type RespostaAnalise = RespostaRecomendacao | RespostaApoio;
+export type RespostaAnalise = RespostaAcolhimento | RespostaApoio;
 
 /** Estreitamento de tipo para as telas decidirem o que renderizar. */
 export function ehApoio(resposta: RespostaAnalise): resposta is RespostaApoio {

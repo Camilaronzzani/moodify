@@ -11,8 +11,11 @@ export default function VisualizadorImagem({ imgSource }: Props) {
 
 const styles = StyleSheet.create({
   image: {
-    width: 320,
-    height: 440,
+    // Largura relativa com proporção fixa em vez de 320x440 cravado: num
+    // iPhone SE (375pt) o valor fixo estourava a área disponível.
+    width: "100%",
+    maxWidth: 320,
+    aspectRatio: 320 / 440,
     borderRadius: 18,
   },
 });

@@ -1,7 +1,9 @@
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Text } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
+import { MiniPlayer } from '@/components/mini-player';
 import { Brand, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
@@ -11,6 +13,14 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      // O mini-player é desenhado ACIMA da barra de abas: assim continua
+      // visível e controlável ao trocar de aba enquanto o trecho toca.
+      tabBar={(props) => (
+        <>
+          <MiniPlayer />
+          <BottomTabBar {...props} />
+        </>
+      )}
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,

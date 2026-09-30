@@ -1,4 +1,4 @@
-import { CONTEXTOS, EMOCOES, ENERGIAS, TAGS } from "../../dominio/taxonomia.ts";
+import { CONTEXTOS, EMOCOES, ENERGIAS, TAGS, TEMAS, type Intencao } from "../../dominio/taxonomia.ts";
 import { validarRespostaModelo, type AIProvider, type PerfilEmocional } from "./contrato.ts";
 
 /**
@@ -28,7 +28,7 @@ export class OllamaProvider implements AIProvider {
     this.timeoutMs = opcoes.timeoutMs ?? 12_000;
   }
 
-  async analisarHumor(texto: string): Promise<PerfilEmocional> {
+  async analisarHumor(texto: string, _intencao?: Intencao): Promise<PerfilEmocional> {
     // AbortSignal.timeout evita que um modelo travado prenda o request.
     const resposta = await fetch(`${this.url}/api/generate`, {
       method: "POST",
@@ -57,6 +57,61 @@ export class OllamaProvider implements AIProvider {
     return validarRespostaModelo(JSON.parse(corpo.response));
   }
 
+  /**
+   * Gera a frase de acolhimento a partir do que a pessoa escreveu.
+   *
+   * Restrições no prompt existem por segurança, não por estilo: um modelo
+   * solto neste contexto pode dar conselho médico, prometer que "vai passar"
+   * ou minimizar o que a pessoa sente. Todas as três são respostas ruins para
+   * alguém em momento difícil.
+   */
+  async gerarAcolhimento(texto: string, perfil: PerfilEmocional): Promise<string> {
+    const resposta = await fetch(`${this.url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(this.timeoutMs),
+      body: JSON.stringify({
+        model: this.modelo,
+        prompt: this.montarPromptAcolhimento(texto, perfil),
+        stream: false,
+        // Temperatura mais alta que na classificação: aqui queremos variedade
+        // de linguagem, não previsibilidade.
+        options: { temperature: 0.7, num_predict: 90 },
+      }),
+    });
+
+    if (!resposta.ok) {
+      throw new Error(`Ollama respondeu ${resposta.status}`);
+    }
+
+    const corpo = (await resposta.json()) as { response?: string };
+    const frase = (corpo.response ?? "").trim().replace(/^["']|["']$/g, "");
+
+    // Um modelo pequeno às vezes devolve vazio, ou um parágrafo inteiro.
+    // Nos dois casos é melhor usar o texto curado.
+    if (frase.length < 15 || frase.length > 260) {
+      throw new Error(`Acolhimento fora do tamanho aceitável (${frase.length} caracteres)`);
+    }
+
+    return frase;
+  }
+
+  private montarPromptAcolhimento(texto: string, perfil: PerfilEmocional): string {
+    return `Alguém escreveu como está se sentindo. Responda com UMA a DUAS frases que reconheçam o que a pessoa contou, em português do Brasil.
+
+REGRAS ABSOLUTAS:
+- NÃO dê conselhos, NÃO sugira o que fazer, NÃO recomende músicas.
+- NÃO diga que vai passar, nem "pense positivo", nem minimize o que ela sente.
+- NÃO faça perguntas.
+- NÃO use emoji.
+- Escreva com naturalidade, como um amigo que ouviu e entendeu.
+- Máximo de 2 frases curtas. Responda APENAS a frase, sem aspas.
+
+Contexto identificado: emoção ${perfil.emotion}, assunto ${perfil.theme}.
+
+O que a pessoa escreveu: "${texto.replace(/"/g, "'")}"`;
+  }
+
   private montarPrompt(texto: string): string {
     return `Você é um analisador de emoções. Interprete o texto do usuário e responda APENAS com JSON.
 
@@ -66,12 +121,13 @@ REGRAS ABSOLUTAS:
 - Se o texto for ambíguo, escolha o mais provável e reduza "confidence".
 
 emotion (escolha 1): ${EMOCOES.join(", ")}
+theme (escolha 1, use "nenhum" se o texto não contar um acontecimento): ${TEMAS.join(", ")}
 context (escolha 1): ${CONTEXTOS.join(", ")}
 energy (escolha 1): ${ENERGIAS.join(", ")}
 tags (escolha de 3 a 5): ${TAGS.join(", ")}
 
 Formato exato da resposta:
-{"emotion":"","context":"","energy":"","tags":[],"keywords":[],"confidence":0.0}
+{"emotion":"","theme":"","context":"","energy":"","tags":[],"keywords":[],"confidence":0.0}
 
 - keywords: até 5 palavras do próprio texto do usuário.
 - confidence: 0.0 a 1.0, quanto você confia na interpretação.
